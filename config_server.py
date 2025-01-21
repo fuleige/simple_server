@@ -1,21 +1,12 @@
 from flask import Flask, request, jsonify
-import os
+import json
 from enum import Enum
 from functools import wraps
 
+# 注意只有从项目根目录才不会报错
+from dao.config_data_dao import ConfigDao
 
-# ------------- 全局配置信息 --------------------
-class GlobalConfig():
-
-    def __init__(self):
-        # 重要的配置信息全部从环境变量中获取 -- 获取不到则直接报错
-        # Mysql配置账号的密码
-        self.mysql_config_pwd = os.getenv("MYSQL_CONFIG_PWD")
-        # 服务器鉴权token保存在环境变量中
-        self.auth_token = os.getenv("SERVER_AUTH_TOKEN")
-
-
-config = GlobalConfig()
+database_config_dao = ConfigDao()
 
 
 # --------------- 一些重要实体 --------------------
@@ -33,7 +24,7 @@ code_message_map = {
 
 class Status:
 
-    def __init__(self, code=0, message=None):
+    def __init__(self, code=ErrorCode.OK, message=None):
         self._data_dict = {}
         self.reset_code_message(code, message)
 
@@ -61,44 +52,30 @@ def config_url(name: str) -> str:
     return f"/qetqDemoZelda411Yxlm/config/{name}"
 
 
-def token_auth_require(func):
-    """
-    用于token鉴权的辅助函数
-    """
-    @wraps(func)
-    def token_warpper_func(*args, **kwags):
-        token_data = request.args.get("token")
-        if token_data is None or token_data != config.auth_token:
-            return Status(ErrorCode.TOKEN_FAIL).to_response_json_httpcode(403)
-        return func(*args, **kwags)
-    return token_warpper_func
+# def token_auth_require(func):
+#     """
+#     用于token鉴权的辅助函数
+#     """
+#     @wraps(func)
+#     def token_warpper_func(*args, **kwags):
+#         token_data = request.args.get("token")
+#         if token_data is None or token_data != config.auth_token:
+#             return Status(ErrorCode.TOKEN_FAIL).to_response_json_httpcode(403)
+#         return func(*args, **kwags)
+#     return token_warpper_func
 
 
 @app.route(config_url("GetHttpsProxyServerConfig"), methods=['GET'])
-@token_auth_require
 def get_method():
-    response = {
-        'message': 'This is a GET response',
-        'status': 'success'
-    }
-    return jsonify(response)
+    status = Status()
+    status.add_extrac_data("config", json.loads(
+        database_config_dao.get_https_proxy_config()))
+    return status.to_response_json_httpcode()
 
 
 @app.route(config_url("PutHttpsProxyServerConfig"), methods=['POST'])
-@token_auth_require
 def post_method():
-    if not request.is_json:
-        return jsonify({'error': 'Request must include JSON data'}), 400
-
-    data = request.get_json()
-
-    new_data = {
-        'received_data': data,
-        'processed_message': 'Data received and processed successfully',
-        'status': 'success'
-    }
-
-    return jsonify(new_data)
+    return Status().to_response_json_httpcode()
 
 
 def main():
